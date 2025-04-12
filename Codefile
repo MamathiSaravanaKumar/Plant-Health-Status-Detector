@@ -1,0 +1,145 @@
+#Training the model
+import os
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping
+
+# Paths
+DATASET_PATH = r"C:/Users/mamat/OneDrive/Desktop/plant_mood/dataset/PlantVillage"
+
+IMG_SIZE = (128, 128)
+BATCH_SIZE = 32
+
+# Data generators
+datagen = ImageDataGenerator(
+    rescale=1./255,
+    validation_split=0.2,
+    rotation_range=30,
+    zoom_range=0.2,
+    horizontal_flip=True
+)
+
+train_data = datagen.flow_from_directory(
+    DATASET_PATH,
+    target_size=IMG_SIZE,
+    batch_size=BATCH_SIZE,
+class_mode='categorical',
+subset='training'
+)
+
+val_data = datagen.flow_from_directory(
+    DATASET_PATH,
+    target_size=IMG_SIZE,
+    batch_size=BATCH_SIZE,
+    class_mode='categorical',
+    subset='validation'
+)
+
+# Deep CNN model
+model = Sequential([
+    Conv2D(32, (3, 3), activation='relu', input_shape=(128, 128, 3)),
+    MaxPooling2D(2, 2),
+
+    Conv2D(64, (3, 3), activation='relu'),
+    MaxPooling2D(2, 2),
+
+Conv2D(128, (3, 3), activation='relu'),
+    MaxPooling2D(2, 2),
+
+    Conv2D(256, (3, 3), activation='relu'),
+    MaxPooling2D(2, 2),
+
+    Flatten(),
+    Dense(256, activation='relu'),
+    Dropout(0.5),
+    Dense(4, activation='softmax')  # 4 moods
+])
+
+model.compile(optimizer=Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
+
+# Early stopping
+early_stop = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
+
+# Train
+model.fit(train_data, validation_data=val_data, epochs=25, callbacks=[early_stop])
+
+# Save model
+model.save(r"C:/Users/mamat/OneDrive/Desktop/plant_mood/plant_mood_model.h5")
+#Predict the image
+import tensorflow as tf
+from PIL import Image
+import numpy as np
+import os
+
+# Set path
+BASE_PATH = r"C:\Users\mamat\OneDrive\Desktop\plant_mood"
+model_path = os.path.join(BASE_PATH, "plant_mood_model.h5")
+img_path = os.path.join(BASE_PATH, "test_leaf.jpg")  # Change filename if necessary
+
+# Load model
+model = tf.keras.models.load_model(model_path)
+class_names = ['Diseased', 'Healthy', 'Stressed', 'Thirsty']
+
+# Load and preprocess image
+img = Image.open(img_path).resize((128, 128))
+img_array = np.expand_dims(np.array(img) / 255.0, axis=0)
+
+# Predict
+prediction = model.predict(img_array)[0]
+predicted_label = class_names[np.argmax(prediction)]
+confidence = np.max(prediction) * 100
+
+print(f"Prediction: {predicted_label} ({confidence:.2f}% confidence)")
+#Streamlit code
+import streamlit as st
+import tensorflow as tf
+from PIL import Image
+import numpy as np
+
+# Set page configuration
+st.set_page_config(page_title="Plant Mood Detector 🌿", layout="centered")
+
+# Custom CSS for light green background
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-color: #dfffd6;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+st.title("🌿 Plant Mood Detector")
+st.write("Upload a leaf image to detect its current condition.")
+
+# Load model
+model = tf.keras.models.load_model("plant_mood_model.h5")
+class_names = ['Diseased', 'Healthy', 'Stressed', 'Thirsty']
+
+uploaded_file = st.file_uploader("Upload a plant leaf image...", type=["jpg", "jpeg", "png"])
+if uploaded_file is not None:
+    # Show the original uploaded image (no resize)
+    st.image(uploaded_file, caption="Uploaded Leaf", use_container_width=True)
+
+    # For prediction: resize, convert and normalize
+    img = Image.open(uploaded_file).convert("RGB").resize((128, 128))
+    img_array = np.expand_dims(np.array(img) / 255.0, axis=0)
+
+    # Predict
+    prediction = model.predict(img_array)[0]
+    predicted_label = class_names[np.argmax(prediction)]
+    confidence = np.max(prediction) * 100
+
+    st.success(f"Prediction: **{predicted_label}** ({confidence:.2f}% confidence)")
+
+
+
+
+
+
+
+
